@@ -1,113 +1,61 @@
+
 import streamlit as st
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import os
 
-# ---------------------------------
-# Page Settings
-# ---------------------------------
+st.set_page_config(page_title="Skin Cancer Classification")
 
-st.set_page_config(
-    page_title="Skin Cancer Classifier",
-    page_icon="🩺",
-    layout="centered"
-)
-
-# ---------------------------------
-# Load Model
-# ---------------------------------
+MODEL_PATH = "skin_cancer_model_small.keras"
 
 @st.cache_resource
 def load_model():
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"Model file not found: {MODEL_PATH}"
+        )
+
     return tf.keras.models.load_model(
-        "skin_cancer_model.keras",
+        MODEL_PATH,
         compile=False
     )
 
-model = load_model()
+st.title("Skin Cancer Classification")
+st.write("Upload a skin image for classification.")
 
-# ---------------------------------
-# App Title
-# ---------------------------------
-
-st.title("🩺 Skin Cancer Classification")
-
-st.write(
-    "Upload a skin lesion image to classify it as "
-    "Benign or Malignant."
-)
-
-# ---------------------------------
-# Upload Image
-# ---------------------------------
+try:
+    model = load_model()
+    st.success("Model loaded successfully!")
+except Exception as e:
+    st.error(f"Model loading failed: {e}")
+    st.stop()
 
 uploaded_file = st.file_uploader(
-    "Choose an image",
+    "Upload Skin Image",
     type=["jpg", "jpeg", "png"]
 )
 
-# ---------------------------------
-# Prediction
-# ---------------------------------
-
-if uploaded_file is not None:
-
+if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Image")
 
-    st.image(
-        image,
-        caption="Uploaded Image",
-        width=350
-    )
-
-    # Resize
     image = image.resize((128, 128))
+    img_array = np.array(image, dtype=np.float32) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
-    # Convert to array
-    image_array = np.array(image)
-
-    # Normalize
-    image_array = image_array / 255.0
-
-    # Add batch dimension
-    image_array = np.expand_dims(
-        image_array,
-        axis=0
+    prediction = float(
+        model.predict(img_array, verbose=0)[0][0]
     )
 
-    # Predict
-    prediction = model.predict(
-        image_array,
-        verbose=0
-    )[0][0]
-
-    # Result
     if prediction >= 0.5:
-        result = "Malignant"
-        confidence = prediction * 100
+        st.subheader("Prediction: Malignant")
+        st.write(f"Model score: {prediction * 100:.2f}%")
     else:
-        result = "Benign"
-        confidence = (1 - prediction) * 100
+        st.subheader("Prediction: Benign")
+        st.write(f"Model score: {(1-prediction) * 100:.2f}%")
 
-    # Display
-    st.subheader("Prediction")
-
-    if result == "Benign":
-        st.success("Result: Benign")
-    else:
-        st.error("Result: Malignant")
-
-    st.info(
-        f"Confidence: {confidence:.2f}%"
+    st.warning(
+        "Educational demonstration only. "
+        "This prediction is not a medical diagnosis."
     )
-
-# ---------------------------------
-# Disclaimer
-# ---------------------------------
-
-st.divider()
-
-st.caption(
-    "This application is developed for educational purposes "
-    "and should not be used as a medical diagnosis."
-)
